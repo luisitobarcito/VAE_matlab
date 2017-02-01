@@ -5,7 +5,7 @@ clear all
 close all
 clc
 
-vae_root = '/Data/Luis/Research/UM/Code/Variational-Autoencoder/matlab/';
+vae_root = '/Data/Luis/Research/UM/Code/VAE_matlab/';
 data_path = strcat(vae_root, 'data/');
 %% Gather data from MNIST images
 % This is a data set of handwritten digits 0 to 9

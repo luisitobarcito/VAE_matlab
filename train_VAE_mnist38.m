@@ -5,7 +5,7 @@ clear all
 close all
 clc
 
-vae_root = '/Data/Luis/Research/UM/Code/Variational-Autoencoder/matlab/';
+vae_root = '/Data/Luis/Research/UM/Code/VAE_matlab/';
 data_path = strcat(vae_root, 'data/');
 %% Gather data from MNIST images
 % This is a data set of handwritten digits 0 to 9
@@ -22,9 +22,9 @@ run nnet/basic.m;
 addpath('./nnet');
 
 %% create encoder and decoder networks
-code_dim = 20;
+code_dim = 2;
 in_dim = size(X3, 1);
-hid_dim = 100;
+hid_dim = 10;
 binary = true;
 run VAE_mnist_net.m
 
