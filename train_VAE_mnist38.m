@@ -18,13 +18,11 @@ X8 = double(data.train8')/255;
 
 
 %% load basic stuff for neural nets
-run nnet/basic.m;
-addpath('./nnet');
-
+run init_nnet.m
 %% create encoder and decoder networks
 code_dim = 2;
 in_dim = size(X3, 1);
-hid_dim = 10;
+hid_dim = 200;
 binary = true;
 run VAE_mnist_net.m
 
@@ -35,7 +33,7 @@ mnistAE8.decoder = decoder;
 
 %% And Now the algorithm finally
 trainparams.batchsize = 100;
-trainparams.n_epochs = 100;
+trainparams.n_epochs = 3000;
 trainparams.stepsize = 0.001;
 trainparams.n_monte = 1; % number of montecarlo samples 
 clc 
@@ -48,3 +46,5 @@ PX3_3 = naiveMarginalLikelihood(X3(:,ceil(size(X3, 2)*rand(1,1000))), mnistAE3.d
 PX3_8 = naiveMarginalLikelihood(X8(:,ceil(size(X8, 2)*rand(1,1000))), mnistAE3.decoder, 100);
 PX8_3 = naiveMarginalLikelihood(X3(:,ceil(size(X3, 2)*rand(1,1000))), mnistAE8.decoder, 100);
 PX8_8 = naiveMarginalLikelihood(X8(:,ceil(size(X8, 2)*rand(1,1000))), mnistAE8.decoder, 100);
+
+save vae_mnist38_weights mnistAE3 mnistAE8 

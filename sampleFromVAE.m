@@ -11,7 +11,8 @@ mu = model.decoder.mu.layers(end).X_out;
 switch model.decoder.type
     case 'bernouli'
        
-        X_samples = rand(size(mu)) <= mu;        
+%         X_samples = rand(size(mu)) <= mu;
+        X_samples = mu;
     case 'gaussian'
         model.decoder.sigma.layers = propagateForward(model.decoder.sigma.layers, model.decoder.hidden.layers(end).X_out);
         sigma = sqrt(exp(model.decoder.sigma.layers(end).X_out));

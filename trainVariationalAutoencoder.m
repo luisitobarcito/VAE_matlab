@@ -9,9 +9,15 @@ default.n_epochs = 100;
 default.stepsize = 0.001;
 default.n_monte = 1;
 default.batchsize = 100;
+default.verbose = 1;
 
 trainparams = loadDefaults(trainparams, default);
-
+if isfield(trainparams, 'sample_resp')
+    sample_resp = true;
+else
+    sample_resp = false;
+end
+    
 %% And Now the algorithm finally
 n_epochs = trainparams.n_epochs;
 stepsize = trainparams.stepsize;
@@ -27,9 +33,14 @@ code_dim = size(encoder.mu.layers(end).W, 1);
 
 
 
-[X_batches] = createMiniBatches(X, batchsize);
+[X_batches, smp_idx] = createMiniBatches(X, batchsize);
+if sample_resp
+    sample_resp_batches = trainparams.sample_resp(smp_idx);
+end
 for iEpc = 1:n_epochs
+    if trainparams.verbose > 0
     fprintf('Epoch  %d\n',iEpc);
+    end
     Lbound = zeros(size(X_batches, 3), 1);
     KL_term = zeros(size(X_batches, 3), 1);
     logPXZ_term = zeros(size(X_batches, 3), 1);
@@ -47,17 +58,28 @@ for iEpc = 1:n_epochs
         Z = bsxfun(@plus, bsxfun(@times, EPS_enc, sigma_enc), mu_enc);
         
         %% Compute the variational bound for current batch
-        KL_term(iBtch) = mean(-(1/2)*sum(1 + encoder.sigma.layers(end).X_out - mu_enc.^2 - sigma2_enc, 1), 2);
+        if sample_resp
+            KL_term(iBtch) = mean(bsxfun(@times, -(1/2)*sum(1 + encoder.sigma.layers(end).X_out - mu_enc.^2 - sigma2_enc, 1), sample_resp_batches(:,:,iBtch)), 2);
+        else
+            KL_term(iBtch) = mean(-(1/2)*sum(1 + encoder.sigma.layers(end).X_out - mu_enc.^2 - sigma2_enc, 1), 2);
+        end
         decoder.hidden.layers = propagateForward(decoder.hidden.layers, reshape(Z, [code_dim, batchsize*n_monte]));
         if binary == true
             decoder.mu.layers = propagateForward(decoder.mu.layers, decoder.hidden.layers(end).X_out);
             mu_dec = reshape(decoder.mu.layers(end).X_out, [in_dim, batchsize, n_monte]);
             E_dec = bsxfun(@minus, mu_dec, X_batches(:,:, iBtch));
-            
-            logPXZ_term(iBtch) = mean(mean(sum(bsxfun(@times, log(mu_dec), X_batches(:,:, iBtch)) ...
-                + bsxfun(@times, log(1-mu_dec), 1 - X_batches(:,:, iBtch)), 1), 3), 2);
-            
-            diff_logPXZ_mu_dec = (1/batchsize)*(1/n_monte)*(-E_dec./(mu_dec.*(1-mu_dec)));
+            if sample_resp
+                logPXZ_term(iBtch) = mean(bsxfun(@times, mean(sum(bsxfun(@times, log(mu_dec), X_batches(:,:, iBtch)) ...
+                    + bsxfun(@times, log(1-mu_dec), 1 - X_batches(:,:, iBtch)), 1), 3), sample_resp_batches(:,:,iBtch)), 2);
+            else
+                logPXZ_term(iBtch) = mean(mean(sum(bsxfun(@times, log(mu_dec), X_batches(:,:, iBtch)) ...
+                    + bsxfun(@times, log(1-mu_dec), 1 - X_batches(:,:, iBtch)), 1), 3), 2);
+            end
+            diff_logPXZ_mu_dec = (1/batchsize)*(1/n_monte)*(X_batches(:,:, iBtch)./mu_dec - (1 - X_batches(:,:, iBtch))./(1 - mu_dec));
+            if sample_resp
+                diff_logPXZ_mu_dec = bsxfun(@times, diff_logPXZ_mu_dec, sample_resp_batches(:, :, iBtch));
+            end
+%             diff_logPXZ_mu_dec = (1/batchsize)*(1/n_monte)*(-E_dec./(mu_dec.*(1-mu_dec)));
             decoder.mu.layers = propagateBackward(decoder.mu.layers, reshape(diff_logPXZ_mu_dec, [in_dim, batchsize*n_monte]));
             diff_logPXZ_h_dec = decoder.mu.layers(1).Diff_in;
             
@@ -70,13 +92,22 @@ for iEpc = 1:n_epochs
             sigma_dec = sqrt(sigma2_dec);
             
             E_dec = bsxfun(@minus, mu_dec, X_batches(:,:, iBtch));
-            
-            logPXZ_term(iBtch) = mean(-(1/2)*log(2*pi)*in_dim ...
-                -(1/2)*mean(sum(reshape(decoder.sigma.layers(end).X_out, [in_dim, batchsize, n_monte]), 1)...
-                + sum((E_dec./sigma_dec).^2, 1), 3), 2);
-            
+            if sample_resp
+                logPXZ_term(iBtch) = mean(bsxfun(@times, -(1/2)*log(2*pi)*in_dim ...
+                    -(1/2)*mean(sum(reshape(decoder.sigma.layers(end).X_out, [in_dim, batchsize, n_monte]), 1)...
+                    + sum((E_dec./sigma_dec).^2, 1), 3), sample_resp_batches(:,:,iBtch)), 2);
+            else
+                logPXZ_term(iBtch) = mean(-(1/2)*log(2*pi)*in_dim ...
+                    -(1/2)*mean(sum(reshape(decoder.sigma.layers(end).X_out, [in_dim, batchsize, n_monte]), 1)...
+                    + sum((E_dec./sigma_dec).^2, 1), 3), 2);
+            end    
             diff_logPXZ_mu_dec = (1/batchsize)*(1/n_monte)*(-E_dec./sigma2_dec);
             diff_logPXZ_logsigma_dec = (1/batchsize)*(1/n_monte)*(1/2)*((E_dec./sigma_dec).^2 - 1);
+            
+            if sample_resp
+                diff_logPXZ_mu_dec = bsxfun(@times, diff_logPXZ_mu_dec, sample_resp_batches(:, :, iBtch));
+                diff_logPXZ_logsigma_dec = bsxfun(@times, diff_logPXZ_logsigma_dec, sample_resp_batches(:, :, iBtch));                
+            end
             decoder.mu.layers = propagateBackward(decoder.mu.layers, reshape(diff_logPXZ_mu_dec, [in_dim, batchsize*n_monte]));
             decoder.sigma.layers = propagateBackward(decoder.sigma.layers, reshape(diff_logPXZ_logsigma_dec, [in_dim, batchsize*n_monte]));
             diff_logPXZ_h_dec = decoder.mu.layers(1).Diff_in + decoder.sigma.layers(1).Diff_in;
@@ -109,8 +140,9 @@ for iEpc = 1:n_epochs
         encoder.hidden.layers = updateParamters(encoder.hidden.layers, stepsize, 'sga');
         
     end
+    if trainparams.verbose > 0
     fprintf('Variational bound is %f,\nKL %f, logPXZ %f\n', mean(Lbound), mean(KL_term), mean(logPXZ_term));
-    
+    end
     
     
 end
@@ -120,10 +152,11 @@ AE.decoder = decoder;
 end
 
 function [params] = loadDefaults(params, defaults)
-
-for iFld = fields(defaults)
-   if ~isfield(params, iFld)
-       params.(iFld) = defaults.(iFld);
+params = params;
+default_fields = fields(defaults);
+for iFld = 1:length(default_fields)
+    if ~isfield(params, default_fields{iFld})
+       params.(default_fields{iFld}) = defaults.(default_fields{iFld});
    end
 end
 

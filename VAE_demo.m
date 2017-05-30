@@ -40,8 +40,7 @@ X.data = double(digits')/255;
 X.targets = double(labels(:)');
 
 %% load basic stuff for neural nets
-run nnet/basic.m;
-addpath('./nnet');
+run init_nnet.m;
 
 %% create encoder and decoder networks
 code_dim = 5;
@@ -52,7 +51,7 @@ run VAE_mnist_net.m
 
 
 %% And Now the algorithm finally
-n_epochs = 100;
+n_epochs = 1000;
 stepsize = 0.001;
 n_monte = 1; % number of montecarlo samples 
 [X_batches] = createMiniBatches(X, batchsize);
@@ -85,7 +84,7 @@ for iEpc = 1:n_epochs
             logPXZ_term(iBtch) = mean(mean(sum(bsxfun(@times, log(mu_dec), X_batches.data(:,:, iBtch)) ...
                                       + bsxfun(@times, log(1-mu_dec), 1 - X_batches.data(:,:, iBtch)), 1), 3), 2);
             
-            diff_logPXZ_mu_dec = (1/batchsize)*(1/n_monte)*(-E_dec./(mu_dec.*(1-mu_dec)));
+            diff_logPXZ_mu_dec = (1/batchsize)*(1/n_monte)*( X_batches.data(:,:, iBtch)./mu_dec - (1- X_batches.data(:,:, iBtch))./(1-mu_dec));
             decoder.mu.layers = propagateBackward(decoder.mu.layers, reshape(diff_logPXZ_mu_dec, [in_dim, batchsize*n_monte]));
             diff_logPXZ_h_dec = decoder.mu.layers(1).Diff_in;
 
