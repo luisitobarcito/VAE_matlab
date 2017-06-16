@@ -150,7 +150,7 @@ for iEpc = 1:n_epochs
     
 end
 decoder.type = 'bernouli'; 
-PX = naiveMaginalLogLikelihood(X_batches.data(:,:,iBtch), decoder, 1000);
+PX = naiveMarginalLikelihood(X_batches.data(:,:,iBtch), decoder, 1000);
 
 
 
